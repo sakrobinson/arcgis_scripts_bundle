@@ -1,0 +1,46 @@
+# Generate random points along a polyline. Uses transformers (x_formers) as an example, but could be any points
+import arcpy
+import random
+
+# Set the workspace and input/output file paths
+arcpy.env.workspace = r"C:\data"
+input_line = "circuits.shp"
+output_points = "x_formers.shp"
+
+# Define the number of points to generate
+num_points = 10
+
+# Get the length of the input line
+length = 0
+with arcpy.da.SearchCursor(input_line, ["SHAPE@LENGTH"]) as cursor:
+    for row in cursor:
+        length = row[0]
+
+# Generate random distances along the line
+distances = [random.uniform(0, length) for i in range(num_points)]
+
+# Sort the distances in ascending order
+distances.sort()
+
+# Create a new point feature class
+arcpy.CreateFeatureclass_management(arcpy.env.workspace, output_points, "POINT")
+
+# Add a field to store the distance along the line
+arcpy.AddField_management(output_points, "Distance", "DOUBLE")
+
+# Open an insert cursor and add the points to the feature class
+with arcpy.da.InsertCursor(output_points, ["SHAPE@", "Distance"]) as cursor:
+    for distance in distances:
+        # Create a point object at the specified distance along the line
+        point = arcpy.Point()
+        with arcpy.da.SearchCursor(input_line, ["SHAPE@"]) as search_cursor:
+            for row in search_cursor:
+                if distance <= row[0].length:
+                    point = row[0].positionAlongLine(distance)
+                    break
+                else:
+                    distance -= row[0].length
+
+        # Create a new feature and set the distance field
+        feature = [point, distance]
+        cursor.insertRow(feature)
